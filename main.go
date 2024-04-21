@@ -1,21 +1,15 @@
 package main
 
 import (
-	"os"
-
-	"github.com/go-redis/redis"
+	"fmt"
+	"time"
 )
 
-// NOTE: user redis to store this DB
-var DB map[string]*Bucket
-
-func NewRedisClient() *redis.Client {
-	return redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_ADDR"),
-		Password: os.Getenv("REDIS_PASSWORD"),
-		DB:       0,
-	})
-}
-
 func main() {
+	now := time.Now()
+	rate := time.Second * 10
+	time.Sleep(time.Second * 11)
+
+	refill := float64(time.Since(now) / rate)
+	fmt.Println(refill)
 }
