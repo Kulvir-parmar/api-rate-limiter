@@ -1,3 +1,3 @@
-module github.com/Kulvir-parmar/api-rate-limiter
+module github.com/Kulvir-parmar/ratelimit
 
 go 1.22.2
