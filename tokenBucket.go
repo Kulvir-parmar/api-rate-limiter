@@ -1,4 +1,4 @@
-package main
+package tokenbucket
 
 import (
 	"net/http"
