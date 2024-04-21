@@ -34,7 +34,7 @@ Although token bucket is pretty straight forward algorithm but may cause race co
 import (
     "net/http"
 
-    limit "github.com/Kulvir-parmar/rate-limiter"
+    limit "github.com/Kulvir-parmar/ratelimit/xxx"
 )
 
 func main() {
@@ -44,6 +44,11 @@ func main() {
     http.ListenAndServe(":42069", limit.RateLimiter(Users, router))
 }
 ```
+
+`xxx` can be limiting algorithm of your choice.
+But currently we have only `tokenbucket` implemented. WIP other algorithms.
+
+### IMPORTANT
 
 - `Users` is in memory representation of Token Bucket Store.
 - Creating a Bucket Store and pass it to Middleware function is important step.
