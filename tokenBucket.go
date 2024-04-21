@@ -21,7 +21,7 @@ type Bucket struct {
 	rate       time.Duration // rate at which tokens are refilled
 }
 
-func NewBucket(capacity TOKENS) *Bucket {
+func newBucket(capacity TOKENS) *Bucket {
 	return &Bucket{
 		capacity:   capacity,
 		tokens:     capacity,
@@ -54,38 +54,48 @@ func (b *Bucket) refill() {
 	}
 }
 
-// BucketDB is in memory representation of USER buckets
-// BucketDB is a map of Bucket with userId as key
+// TokenBuckets is in memory representation of USER buckets
+// TokenBuckets is a map of Bucket with userId as key
 // userId is a unique key assigned to every user when sign in to the application
 // userId is sent with the request header with every request
-type BucketDB struct {
+type TokenBuckets struct {
 	mu      sync.Mutex
-	Buckets map[string]*Bucket
+	buckets map[string]*Bucket
 }
 
-func NewBucketDB() *BucketDB {
-	return &BucketDB{
-		Buckets: make(map[string]*Bucket),
+func NewTokenBuckets() *TokenBuckets {
+	return &TokenBuckets{
+		buckets: make(map[string]*Bucket),
 	}
 }
 
-func (db *BucketDB) getBucket(userId string) *Bucket {
+func (db *TokenBuckets) getBucket(userId string) *Bucket {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	bucket, exists := db.Buckets[userId]
+	bucket, exists := db.buckets[userId]
 
 	if !exists {
-		bucket = NewBucket(MAX_TOKENS)
-		db.Buckets[userId] = bucket
+		bucket = newBucket(MAX_TOKENS)
+		db.buckets[userId] = bucket
 	}
 
 	return bucket
 }
 
-// TODO: Implement removing not active user from the memory.
+// Remove the users from the memory who haven't made any request in last 1 day to keep memory in check
+func (db *TokenBuckets) ClearOldBuckets() {
+	db.mu.Lock()
+	defer db.mu.Unlock()
 
-func RateLimiter(db *BucketDB, next http.Handler) http.Handler {
+	for userId, bucket := range db.buckets {
+		if time.Since(bucket.lastRefill) > 24*time.Hour {
+			delete(db.buckets, userId)
+		}
+	}
+}
+
+func RateLimiter(next http.Handler, users *TokenBuckets) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userId := r.Header.Get("userId")
 		if userId == "" {
@@ -93,7 +103,7 @@ func RateLimiter(db *BucketDB, next http.Handler) http.Handler {
 			return
 		}
 
-		bucket := db.getBucket(userId)
+		bucket := users.getBucket(userId)
 
 		if !bucket.Allow() {
 			http.Error(w, "Too many requests, Try again after some time", http.StatusTooManyRequests)
