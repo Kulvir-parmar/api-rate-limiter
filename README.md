@@ -1,6 +1,6 @@
 # API RATE LIMITING
 
-This is a API rate limiting library written in Go. The following algorithms are implemented curently to throttle user request (you can request any specific algorithms you need.) - Token Bucket
+This is a API rate limiting library written in Go.
 
 ## TOKEN BUCKET ALGORITHM
 
