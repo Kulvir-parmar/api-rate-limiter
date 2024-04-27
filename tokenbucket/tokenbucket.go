@@ -9,7 +9,7 @@ import (
 type TOKENS int
 
 const (
-	MAX_TOKENS TOKENS = 1                // max 1 request per rate seconds (leetcode ftw!)
+	MAX_TOKENS TOKENS = 2                // max 2 request per rate seconds (leetcode ftw!)
 	RATE              = time.Second * 10 // 10 seconds is default rate
 )
 
@@ -40,9 +40,8 @@ func (b *Bucket) Allow() bool {
 	if b.tokens > 0 {
 		b.tokens--
 		return true
-	} else {
-		return false
 	}
+	return false
 }
 
 func (b *Bucket) refill() {
@@ -55,9 +54,7 @@ func (b *Bucket) refill() {
 }
 
 // TokenBuckets is in memory representation of USER buckets
-// TokenBuckets is a map of Bucket with userId as key
-// userId is a unique key assigned to every user when sign in to the application
-// userId is sent with the request header with every request
+// TokenBuckets is a map of Bucket with IP Address as the key
 type TokenBuckets struct {
 	mu      sync.Mutex
 	buckets map[string]*Bucket
@@ -69,41 +66,43 @@ func NewTokenBuckets() *TokenBuckets {
 	}
 }
 
-func (db *TokenBuckets) getBucket(userId string) *Bucket {
+func (db *TokenBuckets) getBucket(ip string) *Bucket {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	bucket, exists := db.buckets[userId]
+	bucket, exists := db.buckets[ip]
 
 	if !exists {
 		bucket = newBucket(MAX_TOKENS)
-		db.buckets[userId] = bucket
+		db.buckets[ip] = bucket
 	}
 
 	return bucket
 }
 
-// Remove the users from the memory who haven't made any request in last 1 day to keep memory in check
+// Remove the stale request from the memory
 func (db *TokenBuckets) ClearOldBuckets() {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	for userId, bucket := range db.buckets {
-		if time.Since(bucket.lastRefill) > 24*time.Hour {
-			delete(db.buckets, userId)
+	for ip, bucket := range db.buckets {
+		if time.Since(bucket.lastRefill) > time.Hour {
+			delete(db.buckets, ip)
 		}
 	}
 }
 
 func RateLimiter(next http.Handler, users *TokenBuckets) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userId := r.Header.Get("userId")
-		if userId == "" {
-			http.Error(w, "UserID missing from the request", http.StatusBadRequest)
-			return
+		ip := r.Header.Get("X-Forwarded-For")
+		if ip == "" {
+			ip = r.Header.Get("X-Real-IP")
+		}
+		if ip == "" {
+			ip = r.RemoteAddr
 		}
 
-		bucket := users.getBucket(userId)
+		bucket := users.getBucket(ip)
 
 		if !bucket.Allow() {
 			http.Error(w, "Too many requests, Try again after some time", http.StatusTooManyRequests)

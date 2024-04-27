@@ -2,15 +2,17 @@
 
 This is a API rate limiting library written in Go.
 
+- some reference [cloudflare-blog](https://blog.cloudflare.com/counting-things-a-lot-of-different-things/)
+
 ## TOKEN BUCKET ALGORITHM
 
-Token Bucket is a container with a pre-defined capacity (1). Tokens are added to the bucket at a pre-defined rate (1 token every 10 sec). Once the bucket reached maximum capacity no more tokens can be added.
+Token Bucket is a container with a pre-defined capacity (2). Tokens are added to the bucket at a pre-defined rate (1 token every 10 sec). Once the bucket reached maximum capacity no more tokens can be added.
 
 Each API request will consume 1 token from the bucket. If there are no tokens left in the bucket the request is dropped.
 
 This algorithm persits following user data in memory
 
-- **User ID** unique identifier for every user.
+- **IP Address** unique identifier for every user.
 - **Tokens left** in the bucket for user.
 - **Timestamp** for when request are sent.
 
@@ -34,32 +36,28 @@ Although token bucket is pretty straight forward algorithm but may cause race co
 import (
     "net/http"
 
-    limit "github.com/Kulvir-parmar/ratelimit/xxx"
+    limit "github.com/Kulvir-parmar/ratelimit/tokenbucket"
 )
 
 func main() {
     Users := limit.NewTokenBuckets()
     router := http.NewServeMux()
 
-    http.ListenAndServe(":42069", limit.RateLimiter(Users, router))
+    http.ListenAndServe(":42069", limit.RateLimiter(router, Users))
 }
 ```
-
-`xxx` can be limiting algorithm of your choice.
-But currently we have only `tokenbucket` implemented. WIP other algorithms.
 
 ### IMPORTANT
 
 - `Users` is in memory representation of Token Bucket Store.
 - Creating a Bucket Store and pass it to Middleware function is important step.
 - Create a `Router` and attach all the routes on which you want Rate Limiting.
-  - By default each user is allowed 1 request per 10 seconds (copied this from Leetcode).
-  - To uniquely identify each user `userId` should be passed (!IMPORTANT)
-  - If request does not have `userId` 400 BAD REQUEST is thrown.
+  - By default each user is allowed 2 request per 10 seconds (something like LEETCODE).
+  - To uniquely identify each IP Address of each request is tracked.
 
 **Memory Cleanup**
 
-As the users grow (jox, coz your don't have any user) the Bucket Store grows and It require much more memory.
+As the users grow (jox, coz you don't have any users) the Bucket Store grows which require more memory.
 To manage the memory, we need to cleanup the Buckets of inactive users. So you can spawn a go routine in our application that will take care of cleaning up the memory.
 
 **Use this code snippet in your main function**
@@ -71,12 +69,10 @@ go func () {
     for {
         Users.ClearOldBuckets()
 
-        time.Sleep(4 * time.Hour)
+        time.Sleep(10 * time.Minute)
     }
 }()
 ```
-
-4 Hours is just a random number you can choose anything that works for you.
 
 ---
 
